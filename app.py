@@ -132,16 +132,16 @@ def plot_goalkeeper_position(A, optimal_gk_position, left_post=B, right_post=C, 
     
     # Add GPE text if provided
     if similarity is not None:
-        ax.text(20, 90, f"GPE: {similarity:.2f}", fontsize=10, color='black', ha='center', va='center')
+        ax.text(20, 90, f"OGkP: {similarity:.2f}", fontsize=10, color='black', ha='center', va='center')
+
     
-    ax.set_title('Goalkeeper Positional Efficiency (GPE)', fontsize=12)
+    ax.set_title('Optimal Goalkeeper Positioning (OGkP)', fontsize=12)
     ax.legend(loc='upper left', fontsize=8, frameon=True)
     return fig
 
 # ----------------- Similarity Metric Functions -----------------
-def euclidean_distance(actual_position, optimal_position):
-    dist = np.linalg.norm(np.array(actual_position) - np.array(optimal_position))
-    return 1 - min(dist / 5, 1)
+def euclidean_distance(actual_position, optimal_position): 
+    return np.linalg.norm(np.array(actual_position) - np.array(optimal_position))
 
 def angular_difference(actual_position, optimal_position, reference_point):
     vec_actual = np.array(actual_position) - np.array(reference_point)
@@ -165,12 +165,15 @@ def dive_radius_overlap(actual_position, optimal_position, actual_radius, optima
         max_area = np.pi * min(r1, r2)**2
         return intersection_area / max_area
 
-def weighted_similarity(actual_position, optimal_position, reference_point, actual_radius, optimal_radius):
-    euclidean = euclidean_distance(actual_position, optimal_position)
-    overlap = dive_radius_overlap(actual_position, optimal_position, actual_radius, optimal_radius)
-    weight_euclidean = 0.5
-    weight_overlap = 0.5
-    return (weight_euclidean * euclidean) + (weight_overlap * overlap)
+def distance_similarity(actual_position, optimal_position, shot_position, max_distance = 3, max_distance_ball = 3):
+    gk_to_ogk = euclidean_distance(actual_position, optimal_position)
+    gk_to_ball = euclidean_distance(actual_position, shot_position)
+    ogk_to_ball = euclidean_distance(optimal_position,shot_position)
+    distance_similarity = max(0, 1 - (gk_to_ogk / max_distance))
+    diff = abs(gk_to_ball - ogk_to_ball)
+    similarity_to_ball = max(0, 1 - (diff / max_distance_ball))
+    
+    return distance_similarity *0.9 + similarity_to_ball *0.1
 
 def calculate_shot_angle(shooter, left_post, right_post):
     vec_left = np.array(left_post) - np.array(shooter)
@@ -193,10 +196,19 @@ def calculate_angular_difference(actual_orientation, optimal_orientation, shot, 
         angular_diff = shot_angle
     return angular_diff / shot_angle
 
-def angular_similarity(actual_position, optimal_position, shot_position):
+def angular_similarity(actual_position, optimal_position, shot_position, threshold=3, alpha=0.2):
     actual_angle = calculate_angle_radians(actual_position, shot_position)
     optimal_angle = calculate_angle_radians(optimal_position, shot_position)
-    return calculate_angular_difference(abs(actual_angle), abs(optimal_angle), shot_position, B, C)
+    base_error = calculate_angular_difference(abs(actual_angle), abs(optimal_angle), shot_position, B, C)
+
+    keeper_distance = min(euclidean_distance(actual_position, optimal_position), euclidean_distance(actual_position,shot_position))
+    if keeper_distance < threshold:
+        factor = 1 - alpha * (1 - keeper_distance / threshold)
+    else:
+        factor = 1
+    final_error = base_error * factor
+
+    return final_error
 
 # ----------------- StatsBomb API Data Retrieval -----------------
 @st.cache_data
@@ -239,7 +251,7 @@ def calculate_OPM(gk_pos, shot_loc):
         shot_position = np.array(shot_loc[i])
         actual_position = np.array(gk_pos[i])
         optimal_position = calculate_optimal_gk_position(shot_position)
-        similarity_score = (1 - angular_similarity(actual_position, optimal_position, shot_position)) * 100
+        similarity_score = ((1 - angular_similarity(actual_position, optimal_position, shot_position))) * 100
         fig = plot_goalkeeper_position(shot_position, optimal_position, B, C, similarity=similarity_score, actual_position=actual_position)
         positioning_metric.append(similarity_score)
         figures.append(fig)
@@ -294,7 +306,7 @@ if st.sidebar.button("Run Analysis"):
             
             # Combine metrics and figures and sort by similarity score descending (highest first)
             shot_data = list(zip(metrics, figures))
-            shot_data_sorted = sorted(shot_data, key=lambda x: x[0], reverse=True)
+            shot_data_sorted = sorted(shot_data, key=lambda x: x[0], reverse=False)
             top_shots = shot_data_sorted[:10]  # Only the top 10 shots
 
             st.header("Top 10 Shot-by-Shot Analysis")
