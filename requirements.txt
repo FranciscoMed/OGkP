@@ -1,6 +1,6 @@
-streamlit==1.25.0
-numpy==1.23.1
-pandas==1.5.3
-matplotlib==3.6.2
-mplsoccer==0.2.18
-statsbombpy==1.2.5
+streamlit
+numpy
+pandas
+matplotlib
+mplsoccer
+statsbombpy
