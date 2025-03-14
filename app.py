@@ -95,7 +95,8 @@ def plot_goalkeeper_position(A, optimal_gk_position, left_post=B, right_post=C, 
       - Their respective dive circles
       - The calculated Goalkeeper Positional Efficiency (GPE) score
     """
-    pitch = VerticalPitch(pitch_type='statsbomb', half=True, line_color='black')
+    pitch = VerticalPitch(pitch_type='statsbomb', half=True,pitch_color='#aabb97', line_color='white',
+              stripe_color='#c2d59d', stripe=True)
     fig, ax = pitch.draw()
     
     # Plot shot cone
